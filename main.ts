@@ -1,8 +1,8 @@
 /**
-  * MFRC522 Block
+  * vdrMFRC522 Block
   */
-//% color="#275C6B" weight=100 icon="\uf2bb" block="MFRC522 RFID"
-namespace MFRC522 {
+//% color="#275C6B" weight=100 icon="\uf2bb" block="vdrMFRC522 RFID"
+namespace vdrMFRC522 {
     let Type2=0
     const BlockAdr: number[] = [8, 9, 10]
     let TPrescalerReg = 0x2B
@@ -122,41 +122,6 @@ namespace MFRC522 {
         pins.digitalWritePin(DigitalPin.P16, 1)
     }
 
-    function readFromCard ():string {
-        let [status, Type2] = Request(PICC_REQIDL)
-        if (status != 0) {
-            return null, null
-        }
-
-        [status, uid] = AvoidColl()
-
-        if (status != 0) {
-            return null, null
-        }
-
-        let id = getIDNum(uid)
-        TagSelect(uid)
-        status = Authent(PICC_AUTHENT1A, 11, Key, uid)
-        let data:NumberFormat.UInt8LE []= []
-        let text_read=''
-        let block: number[] = []
-        if (status == 0) {
-            for (let BlockNum of BlockAdr) {
-                block = ReadRFID(BlockNum)
-                if (block) {
-                    data = data.concat(block)
-                }
-            }
-            if (data) {
-                for (let c of data) {
-                text_read=text_read.concat(String.fromCharCode(c))
-                }
-            }
-        }
-        Crypto1Stop()
-        return text_read
-    }
-
     function SPI_Read (adr: number) {
         pins.digitalWritePin(DigitalPin.P16, 0)
         pins.spiWrite(((adr<<1)& 0x7E)|0x80)
@@ -165,74 +130,10 @@ namespace MFRC522 {
         return val
     }
 
-    function writeToCard (txt: string): number {
-        [status, Type2] = Request(PICC_REQIDL)
-
-        if (status != 0) {
-            return null, null
-        }
-        [status, uid] = AvoidColl()
-
-        if (status != 0) {
-            return null, null
-        }
-
-        let id=getIDNum(uid)
-        TagSelect(uid)
-        status=Authent(PICC_AUTHENT1A, 11, Key, uid)
-        ReadRFID(11)
-
-        if (status == 0) {
-            let data:NumberFormat.UInt8LE []= []
-            for (let i = 0; i < txt.length; i++){
-                data.push(txt.charCodeAt(i))
-            }
-
-            for (let j = txt.length; j<48;j++){
-                data.push(32)
-            }
-
-            let b = 0
-            for (let BlockNum2 of BlockAdr) {
-                WriteRFID(BlockNum2, data.slice((b*16), ((b+1)*16)))
-                b ++
-            }
-        }
-
-            Crypto1Stop()
-            serial.writeLine("Written to Card")
-            return id
-        }
-
-
-    function ReadRFID (blockAdr: number) {
-        recvData = []
-        recvData.push(PICC_READ)
-        recvData.push(blockAdr)
-        let pOut2=[]
-        pOut2= CRC_Calculation(recvData)
-        recvData.push(pOut2[0])
-        recvData.push(pOut2[1])
-        let [status, returnData, returnLen] = MFRC522_ToCard(PCD_TRANSCEIVE, recvData)
-
-        if (status != 0) {
-            serial.writeLine("Error while reading!")
-        }
-
-        if (returnData.length != 16) {
-            return null
-        }
-        else {
-            return returnData
-        }
-    }
-
     function ClearBits (reg: number, mask: number) {
         let tmp = SPI_Read(reg)
         SPI_Write(reg, tmp & (~mask))
     }
-
-
 
     function Request (reqMode: number):[number, any] {
         let Type:number[] = []
@@ -280,27 +181,6 @@ namespace MFRC522 {
 
     function Crypto1Stop () {
         ClearBits(Status2Reg, 0x08)
-    }
-
-
-    function Authent (authMode: number, BlockAdr: number, Sectorkey: number[], SerNum: number[]) {
-        let buff: number[] = []
-        buff.push(authMode)
-        buff.push(BlockAdr)
-        for (let l=0; l <(Sectorkey.length);l++){
-            buff.push(Sectorkey[l])
-        }
-        for (let m=0;m<4;m++){
-            buff.push(SerNum[m])
-        }
-        [status, returnData, returnLen] = MFRC522_ToCard(PCD_AUTHENT, buff)
-            if (status != 0){
-            serial.writeLine("AUTH ERROR!")
-        }
-        if ((SPI_Read(Status2Reg) & 0x08)==0){
-            serial.writeLine("AUTH ERROR2!")
-        }
-        return status
     }
 
     function MFRC522_ToCard (command: number, sendData: number[]):[number, number[],number] {
@@ -423,39 +303,6 @@ namespace MFRC522 {
         return DataOut
     }
 
-    function WriteRFID (blockAdr: number, writeData: number[]) {
-        let buff: number[] = []
-        let crc: number[] = []
-
-        buff.push(0xA0)
-        buff.push(blockAdr)
-        crc = CRC_Calculation(buff)
-        buff.push(crc[0])
-        buff.push(crc[1])
-        let [status, returnData, returnLen] = MFRC522_ToCard(PCD_TRANSCEIVE, buff)
-        if ((status != 0) || (returnLen!=4) || ((returnData[0]&0x0F) != 0x0A)){
-            status = 2
-            serial.writeLine("ERROR")
-        }
-
-        if (status == 0) {
-            let buff2 : number []= []
-            for (let w=0;w<16;w++){
-                buff2.push(writeData[w])
-            }
-            crc = CRC_Calculation(buff2)
-            buff2.push(crc[0])
-            buff2.push(crc[1])
-            let [status, returnData, returnLen] = MFRC522_ToCard(PCD_TRANSCEIVE, buff2)
-            if ((status!=0)||(returnLen!=4)||((returnData[0]&0x0F)!=0x0A)){
-                serial.writeLine("Error while writing")
-            }
-            else{
-                serial.writeLine("Data written")
-            }
-        }
-    }
-
     function getIDNum(uid: number[]){
         let a= 0
 
@@ -535,28 +382,6 @@ namespace MFRC522 {
        }
        return text
    }
-
-
-
-
-   /*
-    * Function to write Data
-    */
-   //% block="Write Data %text"
-   //% text
-   //% weight=85
-  export function write (text: string) {
-      let id = writeToCard(text)
-
-      while (!id) {
-          let id = writeToCard(text)
-
-          if (id != undefined){
-              return
-          }
-      }
-      return
-  }
 
   /*
    * TUrn off antenna
