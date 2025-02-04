@@ -366,23 +366,6 @@ namespace vdrMFRC522 {
        return id
    }
 
-    /*
-     * Function to read Data from card
-     */
-    //% block="Read data"
-    //% weight=90
-   export function read():string {
-       let text = readFromCard()
-       while (!text) {
-           let text = readFromCard()
-
-           if (text!=''){
-               return text
-           }
-       }
-       return text
-   }
-
   /*
    * TUrn off antenna
    */
