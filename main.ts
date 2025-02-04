@@ -102,6 +102,7 @@ namespace vdrMFRC522 {
 
 	function RFID_ConvertUIDtoString(uid: number[]) : string {
 	  let result = ''
+	  uid.pop();
 	  uid.forEach(element => {
 		result += MakerBit_convertNumberToHex(element, 2);
 	  });
